@@ -10,6 +10,18 @@ semáforo que dice si cada ejercicio mejoró respecto a la vez anterior.
 
 Éxito = llegar al 14-12-2026 con el historial completo de cargas y ver la tendencia por ejercicio.
 
+## Principios
+
+- **Código limpio, sin sobrecodificación:** lo mínimo que cumple el diseño. Sin frameworks,
+  sin abstracciones de una sola implementación, sin configuración para valores que no cambian,
+  sin código "por si acaso". Nombres claros en español, funciones cortas, comentarios solo
+  donde el porqué no es obvio.
+- **Interfaz moderna, limpia e intuitiva:** tema oscuro, tarjetas con bordes suaves, tipografía
+  del sistema, botones y campos de al menos 48 px (uso con una mano y dedos sudados), la
+  siguiente serie pendiente resaltada, el día que toca marcado ("Te toca"), y colores
+  consistentes por fase y por semáforo. Nada que haya que aprender: cada pantalla tiene una
+  acción principal evidente.
+
 ## Alcance
 
 **Dentro:** 1 usuario, 1 celular Android, rutina fija en un archivo, funciona sin internet,
@@ -31,7 +43,7 @@ para instalar la PWA y para el service worker).
 | `logica.js` | Funciones puras: volumen, semáforo, siguiente día, formato mm:ss |
 | `test.mjs` | Pruebas de `logica.js` con `node:assert` (`node test.mjs`) |
 | `sw.js` | Service worker cache-first; constante `VERSION` para invalidar caché |
-| `manifest.json`, `icono.png` | Instalación en pantalla de inicio |
+| `manifest.json`, `icono-192.png`, `icono-512.png` | Instalación en pantalla de inicio (Chrome Android exige 192 y 512 px) |
 
 El PDF no se versiona (`.gitignore`): contiene datos personales y el repo será público.
 
