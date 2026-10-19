@@ -1,9 +1,11 @@
 // Subir VERSION en cada cambio publicado: la app se actualiza la siguiente vez que se abre.
-const VERSION = 'v1';
-const ARCHIVOS = ['./', './index.html', './rutina.js', './logica.js', './manifest.json', './icono-192.png', './icono-512.png'];
+const VERSION = 'v2';
+const ARCHIVOS = ['./', './index.html', './rutina.js', './logica.js', './cuerpo.js', './manifest.json', './icono-192.png', './icono-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(cache => cache.addAll(ARCHIVOS)));
+  // cache: 'reload' evita guardar una mezcla de archivos nuevos y viejos de la caché HTTP.
+  e.waitUntil(caches.open(VERSION).then(cache =>
+    cache.addAll(ARCHIVOS.map(url => new Request(url, { cache: 'reload' })))));
   self.skipWaiting();
 });
 

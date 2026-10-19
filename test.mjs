@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as L from './logica.js';
 import { RUTINA } from './rutina.js';
+import { MUSCULOS, svgCuerpo } from './cuerpo.js';
 
 test('parseNumero acepta coma decimal y rechaza basura', () => {
   assert.equal(L.parseNumero('12,5'), 12.5);
@@ -165,4 +166,29 @@ test('RUTINA: finales de cada día', () => {
     assert.equal(d.final.trabajoSeg + d.final.pausaSeg, 60);
   }
   assert.equal(RUTINA[0].ejercicios.find(ej => ej.id === 'jalon-supino').cardioBloques, 2);
+});
+
+test('tendencia colorea cada punto contra el anterior', () => {
+  const t = L.tendencia([{ fecha: 'a', v: 100 }, { fecha: 'b', v: 110 }, { fecha: 'c', v: 105 }]);
+  assert.deepEqual(t.map(p => p.color), ['gris', 'verde', 'rojo']);
+  assert.deepEqual(t.map(p => p.antes), [null, 100, 110]);
+  assert.equal(t[2].fecha, 'c');
+});
+
+test('tendencia invertida para tiempos', () => {
+  assert.deepEqual(L.tendencia([{ v: 600 }, { v: 540 }], true).map(p => p.color), ['gris', 'verde']);
+});
+
+test('svgCuerpo dibuja todos los músculos y marca principal/secundario', () => {
+  for (const m of Object.keys(MUSCULOS)) assert.ok(svgCuerpo([m]).includes('class="m p"'), m);
+  const svg = svgCuerpo(['pecho'], ['triceps']);
+  assert.equal(svg.split('class="m p"').length - 1, 2);
+  assert.equal(svg.split('class="m s"').length - 1, 2);
+});
+
+test('RUTINA: cada ejercicio tiene músculos válidos', () => {
+  for (const ej of RUTINA.flatMap(d => d.ejercicios)) {
+    assert.ok(ej.musculos.principal.length > 0, ej.id);
+    for (const m of [...ej.musculos.principal, ...ej.musculos.secundarios]) assert.ok(MUSCULOS[m], `${ej.id}: ${m}`);
+  }
 });

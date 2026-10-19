@@ -26,6 +26,15 @@ export function semaforo(hoy, anterior, menosEsMejor = false) {
   return 'amarillo';
 }
 
+// puntos: [{ v, ...lo que sea }] en orden cronológico → añade antes y color contra el punto previo.
+export function tendencia(puntos, menosEsMejor = false) {
+  return puntos.map((p, i) => ({
+    ...p,
+    antes: puntos[i - 1]?.v ?? null,
+    color: semaforo(p.v, puntos[i - 1]?.v, menosEsMejor),
+  }));
+}
+
 export function anterior(historial, ejId) {
   for (let i = historial.length - 1; i >= 0; i--) {
     const series = historial[i].ejercicios[ejId];

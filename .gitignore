@@ -1,2 +1,3 @@
 # El PDF tiene cédula y celular; el repo se publicará en GitHub Pages
 *.pdf
+.playwright-mcp/

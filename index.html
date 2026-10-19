@@ -33,11 +33,46 @@
   .sub { color: var(--sub); margin: 2px 0; font-size: .85rem; }
   .fila { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
   .fila .n { width: 28px; color: var(--sub); font-size: .85rem; }
-  .fila input { width: 0; flex: 1; min-height: 48px; font-size: 1.15rem; text-align: center; border-radius: 12px; border: 1px solid var(--borde); background: var(--fondo); color: var(--texto); }
-  .fila input:focus { outline: 2px solid var(--azul); border-color: transparent; }
-  .fila.siguiente input { border-color: var(--azul); }
-  .fila.hecha input { border-color: var(--verde); color: var(--sub); }
-  .fila.hecha button { background: var(--verde); border-color: var(--verde); color: #08130c; }
+  .fila input, .serie input { width: 0; flex: 1; min-height: 48px; font-size: 1.15rem; text-align: center; border-radius: 12px; border: 1px solid var(--borde); background: var(--fondo); color: var(--texto); }
+  .fila input:focus, .serie input:focus { outline: 2px solid var(--azul); border-color: transparent; }
+  .serie.siguiente input { border-color: var(--azul); }
+  .serie.hecha input { border-color: var(--verde); color: var(--sub); }
+  .serie.hecha button { background: var(--verde); border-color: var(--verde); color: #08130c; }
+  table.series { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0 8px; margin-top: 4px; }
+  table.series th { color: var(--sub); font-size: .75rem; font-weight: 500; }
+  table.series td { padding: 0 3px; text-align: center; }
+  .col-n { width: 30px; }
+  .col-ant { width: 24%; }
+  .col-ok { width: 54px; }
+  .serie input { width: 100%; }
+  .serie button { width: 100%; padding: 0; }
+  .serie .n { color: var(--sub); font-size: .85rem; }
+  .serie .ant { color: var(--sub); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .chip { padding: 3px 10px; border-radius: 999px; font-size: .75rem; background: color-mix(in srgb, var(--acento) 22%, var(--superficie)); color: #ffd6d6; }
+  .chip.p { background: var(--acento); color: #fff; font-weight: 600; }
+  .cuerpo { display: block; width: 100%; max-height: 240px; }
+  .cuerpo .base { fill: #232730; }
+  .cuerpo .m { fill: #2f3541; }
+  .cuerpo .s { fill: color-mix(in srgb, var(--acento) 45%, var(--superficie)); }
+  .cuerpo .p { fill: var(--acento); }
+  .cuerpo text { fill: var(--sub); font-size: 8px; text-anchor: middle; }
+  .conteo { display: flex; gap: 10px; margin-bottom: 8px; }
+  .conteo div { flex: 1; padding: 12px 0; text-align: center; font-size: 1.6rem; font-weight: 700; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); }
+  .conteo .punto { display: inline-block; margin-right: 6px; vertical-align: middle; }
+  .conteo small { display: block; color: var(--sub); font-size: .75rem; font-weight: 400; }
+  h3.dia { margin: 20px 0 8px; color: var(--sub); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+  details.tarjeta { padding: 0; }
+  details summary { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 14px 16px; list-style: none; cursor: pointer; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: '›'; color: var(--sub); font-size: 1.3rem; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(90deg); }
+  summary .nombre { flex: 1; min-width: 0; font-weight: 600; font-size: .95rem; }
+  .puntos { display: flex; gap: 4px; }
+  .puntos .punto { width: 10px; height: 10px; }
+  .cambio { min-width: 58px; text-align: right; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  details .detalle { padding: 0 16px 14px; }
+  details .detalle .fila { flex-wrap: wrap; }
   .fila b { margin-left: auto; font-variant-numeric: tabular-nums; }
   .punto { width: 14px; height: 14px; border-radius: 50%; flex: none; }
   .verde { background: var(--verde); }
@@ -71,6 +106,7 @@
 <script type="module">
 import { RUTINA } from './rutina.js';
 import * as L from './logica.js';
+import { MUSCULOS, svgCuerpo } from './cuerpo.js';
 
 const K_HIST = 'entreno.historial';
 const K_CURSO = 'entreno.enCurso';
@@ -218,7 +254,7 @@ function inicio() {
         ${d.nombre}<small>${!sesion && d.id === toca ? 'Te toca · ' : ''}${d.enfasis}</small>
       </button>`).join('')}
     <nav>
-      <button data-accion="historial">Historial</button>
+      <button data-accion="progreso">Progreso</button>
       <button data-accion="respaldo">Respaldo</button>
     </nav>`;
 }
@@ -241,27 +277,50 @@ function pantallaSesion() {
   mantenerPantalla();
   app.innerHTML = `
     <header><button data-accion="inicio" aria-label="Volver">←</button><h2>${d.nombre}</h2></header>
+    ${tarjetaCuerpo(d)}
     ${d.ejercicios.map(tarjetaEjercicio).join('')}
     ${tarjetaFinal(d.final)}
     <button class="grande destacado" data-accion="resumen">Terminar sesión</button>`;
 }
 
+const chips = (principales, secundarios) => [
+  ...principales.map(m => `<span class="chip p">${MUSCULOS[m]}</span>`),
+  ...secundarios.map(m => `<span class="chip">${MUSCULOS[m]}</span>`),
+].join('');
+
+function tarjetaCuerpo(d) {
+  const principales = [...new Set(d.ejercicios.flatMap(ej => ej.musculos.principal))];
+  const secundarios = [...new Set(d.ejercicios.flatMap(ej => ej.musculos.secundarios))].filter(m => !principales.includes(m));
+  return `
+    <section class="tarjeta">
+      ${svgCuerpo(principales, secundarios)}
+      <div class="chips">${chips(principales, secundarios)}</div>
+      <p class="sub">Intenso: músculo principal · suave: secundario</p>
+    </section>`;
+}
+
 function tarjetaEjercicio(ej) {
-  const prev = L.anterior(historial, ej.id);
+  const prev = L.anterior(historial, ej.id) ?? [];
   const filas = sesion.ejercicios[ej.id];
   const pendiente = filas.findIndex(s => !L.serieValida(s));
   return `
     <section class="tarjeta">
       <h3>${ej.nombre} <span class="sub">${ej.reps} reps</span></h3>
+      <div class="chips">${chips(ej.musculos.principal, ej.musculos.secundarios)}</div>
       <p class="sub">+ ${ej.cardio} ${ej.cardioSeg}s${ej.cardioBloques > 1 ? ' por pierna' : ''} · descanso ${ej.descansoSeg}s</p>
-      <p class="sub">Anterior: ${prev ? prev.map(s => `${s.peso}×${s.reps}`).join(' · ') : '—'}</p>
-      ${filas.map((s, i) => `
-        <div class="fila ${L.serieValida(s) ? 'hecha' : i === pendiente ? 'siguiente' : ''}" data-ej="${ej.id}" data-i="${i}">
-          <span class="n">S${i + 1}</span>
-          <input data-campo="peso" inputmode="decimal" placeholder="kg" aria-label="Peso serie ${i + 1}" value="${s.peso ?? ''}">
-          <input data-campo="reps" inputmode="numeric" placeholder="reps" aria-label="Repeticiones serie ${i + 1}" value="${s.reps ?? ''}">
-          <button data-accion="serie" aria-label="Serie ${i + 1} hecha">✓</button>
-        </div>`).join('')}
+      <table class="series">
+        <colgroup><col class="col-n"><col class="col-ant"><col><col><col class="col-ok"></colgroup>
+        <thead><tr><th></th><th>Anterior</th><th>kg</th><th>reps</th><th></th></tr></thead>
+        <tbody>${filas.map((s, i) => `
+          <tr class="serie ${L.serieValida(s) ? 'hecha' : i === pendiente ? 'siguiente' : ''}" data-ej="${ej.id}" data-i="${i}">
+            <td class="n">S${i + 1}</td>
+            <td class="ant">${prev[i] ? `${prev[i].peso}×${prev[i].reps}` : '—'}</td>
+            <td><input data-campo="peso" inputmode="decimal" placeholder="kg" aria-label="Peso serie ${i + 1}" value="${s.peso ?? ''}"></td>
+            <td><input data-campo="reps" inputmode="numeric" placeholder="reps" aria-label="Repeticiones serie ${i + 1}" value="${s.reps ?? ''}"></td>
+            <td><button data-accion="serie" aria-label="Serie ${i + 1} hecha">✓</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
     </section>`;
 }
 
@@ -303,8 +362,9 @@ function marcarSerie(fila) {
 function pct(hoy, antes) {
   if (!antes || hoy == null) return '';
   const d = ((hoy - antes) / antes) * 100;
-  return ` (${d > 0 ? '+' : ''}${d.toFixed(1)} %)`;
+  return `${d > 0 ? '+' : ''}${d.toFixed(1)} %`;
 }
+const entreParentesis = texto => texto && ` (${texto})`;
 
 function pantallaResumen() {
   const d = dia(sesion.dia);
@@ -312,12 +372,12 @@ function pantallaResumen() {
     const hoy = L.volumen(sesion.ejercicios[ej.id]);
     const prev = L.anterior(historial, ej.id);
     const antes = prev && L.volumen(prev);
-    return `<div class="fila"><span class="punto ${L.semaforo(hoy, antes)}"></span>${ej.nombre}<b>${+hoy.toFixed(1)}${pct(hoy, antes)}</b></div>`;
+    return `<div class="fila"><span class="punto ${L.semaforo(hoy, antes)}"></span>${ej.nombre}<b>${+hoy.toFixed(1)}${entreParentesis(pct(hoy, antes))}</b></div>`;
   });
   if (d.final.tipo === 'distancia') {
     const hoy = sesion.cardioSeg;
     const antes = L.cardioAnterior(historial, d.id);
-    lineas.push(`<div class="fila"><span class="punto ${L.semaforo(hoy, antes, true)}"></span>${d.final.nombre}<b>${hoy ? L.formatoTiempo(hoy) : '—'}${pct(hoy, antes)}</b></div>`);
+    lineas.push(`<div class="fila"><span class="punto ${L.semaforo(hoy, antes, true)}"></span>${d.final.nombre}<b>${hoy ? L.formatoTiempo(hoy) : '—'}${entreParentesis(pct(hoy, antes))}</b></div>`);
   }
   app.innerHTML = `
     <header><button data-accion="continuar" aria-label="Volver">←</button><h2>Resumen · ${d.nombre}</h2></header>
@@ -338,32 +398,47 @@ function guardarSesion() {
   inicio();
 }
 
-function pantallaHistorial() {
-  const bloques = RUTINA.flatMap(d => d.ejercicios).map(ej => {
-    const puntos = historial
-      .filter(s => s.ejercicios[ej.id]?.length)
-      .map(s => ({ fecha: s.fecha, v: L.volumen(s.ejercicios[ej.id]) }));
-    return tarjetaHistorial(ej.nombre, puntos, false, v => +v.toFixed(1));
-  });
-  for (const d of RUTINA.filter(d => d.final.tipo === 'distancia')) {
-    const puntos = historial
-      .filter(s => s.dia === d.id && s.cardioSeg > 0)
-      .map(s => ({ fecha: s.fecha, v: s.cardioSeg }));
-    bloques.push(tarjetaHistorial(d.final.nombre, puntos, true, L.formatoTiempo));
-  }
+function pantallaProgreso() {
+  const conteo = { verde: 0, amarillo: 0, rojo: 0 };
+  const tarjeta = (nombre, puntos, formato) => {
+    const ultimo = puntos.at(-1);
+    if (ultimo?.color in conteo) conteo[ultimo.color]++;
+    return `
+      <details class="tarjeta">
+        <summary>
+          <span class="nombre">${nombre}</span>
+          <span class="puntos">${puntos.slice(-5).map(p => `<span class="punto ${p.color}"></span>`).join('')}</span>
+          <b class="cambio">${(ultimo && pct(ultimo.v, ultimo.antes)) || '—'}</b>
+        </summary>
+        <div class="detalle">${[...puntos].reverse().map(p => `
+          <div class="fila"><span class="punto ${p.color}"></span>${p.fecha}<span class="sub">${p.detalle}</span><b>${formato(p.v)}</b></div>`).join('')
+          || '<p class="sub">Sin sesiones todavía.</p>'}
+        </div>
+      </details>`;
+  };
+  const bloques = RUTINA.map(d => {
+    const tarjetas = d.ejercicios.map(ej => tarjeta(ej.nombre, L.tendencia(historial
+      .filter(s => s.ejercicios[ej.id]?.some(L.serieValida))
+      .map(s => {
+        const series = s.ejercicios[ej.id].filter(L.serieValida);
+        return { fecha: s.fecha, v: L.volumen(series), detalle: series.map(x => `${x.peso}×${x.reps}`).join(' · ') };
+      })), v => +v.toFixed(1)));
+    if (d.final.tipo === 'distancia') {
+      tarjetas.push(tarjeta(d.final.nombre, L.tendencia(historial
+        .filter(s => s.dia === d.id && s.cardioSeg > 0)
+        .map(s => ({ fecha: s.fecha, v: s.cardioSeg, detalle: '' })), true), L.formatoTiempo));
+    }
+    return `<h3 class="dia">${d.nombre}</h3>${tarjetas.join('')}`;
+  }).join('');
   app.innerHTML = `
-    <header><button data-accion="inicio" aria-label="Volver">←</button><h2>Historial</h2></header>
-    ${bloques.join('') || '<p class="sub">Todavía no hay sesiones guardadas.</p>'}`;
-}
-
-function tarjetaHistorial(titulo, puntos, menosEsMejor, formato) {
-  if (!puntos.length) return '';
-  const filas = puntos
-    .map((p, i) => ({ ...p, color: L.semaforo(p.v, puntos[i - 1]?.v, menosEsMejor) }))
-    .slice(-5)
-    .reverse()
-    .map(p => `<div class="fila"><span class="punto ${p.color}"></span>${p.fecha}<b>${formato(p.v)}</b></div>`);
-  return `<section class="tarjeta"><h3>${titulo}</h3>${filas.join('')}</section>`;
+    <header><button data-accion="inicio" aria-label="Volver">←</button><h2>Progreso</h2></header>
+    <div class="conteo">
+      <div><span class="punto verde"></span>${conteo.verde}<small>mejoraron</small></div>
+      <div><span class="punto amarillo"></span>${conteo.amarillo}<small>se mantienen</small></div>
+      <div><span class="punto rojo"></span>${conteo.rojo}<small>bajaron</small></div>
+    </div>
+    <p class="sub">Según la última sesión de cada ejercicio. Toca uno para ver su detalle.</p>
+    ${bloques}`;
 }
 
 function pantallaRespaldo() {
@@ -401,12 +476,12 @@ app.addEventListener('click', e => {
     case 'inicio': return inicio();
     case 'continuar': return pantallaSesion();
     case 'empezar': return empezar(b.dataset.dia);
-    case 'serie': return marcarSerie(b.closest('.fila'));
+    case 'serie': return marcarSerie(b.closest('.serie'));
     case 'resumen': return pantallaResumen();
     case 'guardar': return guardarSesion();
     case 'hiit': return temporizador(L.pasosHiit(dia(sesion.dia).final));
     case 'crono': return alternarCrono();
-    case 'historial': return pantallaHistorial();
+    case 'progreso': return pantallaProgreso();
     case 'respaldo': return pantallaRespaldo();
     case 'exportar': return exportar();
   }
@@ -429,7 +504,7 @@ app.addEventListener('change', e => {
     sesion.cardioSeg = seg;
     return guardarCurso();
   }
-  const fila = input.closest('.fila[data-ej]');
+  const fila = input.closest('.serie');
   if (!fila) return;
   sesion.ejercicios[fila.dataset.ej][fila.dataset.i][input.dataset.campo] = L.parseNumero(input.value);
   guardarCurso();
