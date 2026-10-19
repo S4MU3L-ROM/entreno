@@ -102,6 +102,16 @@ test('validarRespaldo acepta solo arrays de sesiones', () => {
   assert.equal(L.validarRespaldo([{ fecha: '2026-10-20', dia: 'torso1', ejercicios: null }]), false);
 });
 
+test('validarRespaldo rechaza datos que podrían inyectar HTML', () => {
+  const sesion = { fecha: '2026-10-20', dia: 'torso1', ejercicios: { 'press-plano': [{ peso: 14, reps: 12 }] }, cardioSeg: null };
+  assert.equal(L.validarRespaldo([{ ...sesion, fecha: '<img src=x onerror=alert(1)>' }]), false);
+  assert.equal(L.validarRespaldo([{ ...sesion, ejercicios: { 'press-plano': [{ peso: '<b>', reps: 12 }] } }]), false);
+  assert.equal(L.validarRespaldo([{ ...sesion, ejercicios: { 'press-plano': [{ peso: 14, reps: '"><script>' }] } }]), false);
+  assert.equal(L.validarRespaldo([{ ...sesion, ejercicios: { 'press-plano': 'x' } }]), false);
+  assert.equal(L.validarRespaldo([{ ...sesion, cardioSeg: '<i>' }]), false);
+  assert.equal(L.validarRespaldo([{ ...sesion, cardioSeg: 545 }]), true);
+});
+
 test('pasosSuperserie: preparación, cardio y descanso', () => {
   const ej = { cardio: 'Skipping', cardioSeg: 45, cardioBloques: 1, descansoSeg: 90 };
   assert.deepEqual(L.pasosSuperserie(ej), [

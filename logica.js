@@ -57,9 +57,17 @@ export function formatoTiempo(seg) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+// Estricta a propósito: estos datos se pintan con innerHTML y pueden venir de un archivo importado.
+const esNumero = v => typeof v === 'number' && Number.isFinite(v);
+
 export function validarRespaldo(datos) {
   return Array.isArray(datos) && datos.every(s =>
-    s && typeof s.fecha === 'string' && typeof s.dia === 'string' && s.ejercicios && typeof s.ejercicios === 'object');
+    s && typeof s.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.fecha)
+    && typeof s.dia === 'string'
+    && (s.cardioSeg == null || esNumero(s.cardioSeg))
+    && s.ejercicios && typeof s.ejercicios === 'object'
+    && Object.values(s.ejercicios).every(series =>
+      Array.isArray(series) && series.every(x => x && esNumero(x.peso) && esNumero(x.reps))));
 }
 
 export function pasosSuperserie(ej) {
