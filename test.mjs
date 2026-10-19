@@ -192,3 +192,21 @@ test('RUTINA: cada ejercicio tiene músculos válidos', () => {
     for (const m of [...ej.musculos.principal, ...ej.musculos.secundarios]) assert.ok(MUSCULOS[m], `${ej.id}: ${m}`);
   }
 });
+
+test('conversión kg/lb sin deriva', () => {
+  assert.equal(L.aKg(10, 'kg'), 10);
+  assert.ok(Math.abs(L.aKg(25, 'lb') - 11.33980925) < 1e-9);
+  assert.equal(L.aUnidad(10, 'kg'), 10);
+  assert.equal(L.formatoPeso(L.aKg(25, 'lb'), 'lb'), '25');
+  assert.equal(L.formatoPeso(L.aKg(27.5, 'lb'), 'lb'), '27.5');
+  assert.equal(L.formatoPeso(10, 'lb'), '22.05');
+  assert.equal(L.formatoPeso(12.5, 'kg'), '12.5');
+  assert.equal(L.formatoPeso(11.25, 'kg'), '11.25');
+  assert.equal(L.formatoPeso(null, 'lb'), '');
+});
+
+test('volumenEn convierte solo cuando hay peso', () => {
+  assert.equal(L.volumenEn([{ peso: 10, reps: 10 }], 'kg'), 100);
+  assert.ok(Math.abs(L.volumenEn([{ peso: L.aKg(20, 'lb'), reps: 10 }], 'lb') - 200) < 1e-9);
+  assert.equal(L.volumenEn([{ peso: 0, reps: 15 }, { peso: 0, reps: 12 }], 'lb'), 27);
+});

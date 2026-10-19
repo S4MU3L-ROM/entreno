@@ -48,6 +48,12 @@
   .serie button { width: 100%; padding: 0; }
   .serie .n { color: var(--sub); font-size: .85rem; }
   .serie .ant { color: var(--sub); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .titulo { display: flex; align-items: flex-start; gap: 8px; }
+  .titulo h3 { flex: 1; }
+  .unidad { display: flex; flex: none; border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; }
+  .unidad button { min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; color: var(--sub); font-size: .85rem; }
+  .unidad button.activo { background: var(--azul); color: #fff; font-weight: 600; }
+  .peligro { background: transparent; border-color: var(--rojo); color: var(--rojo); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
   .chip { padding: 3px 10px; border-radius: 999px; font-size: .75rem; background: color-mix(in srgb, var(--acento) 22%, var(--superficie)); color: #ffd6d6; }
   .chip.p { background: var(--acento); color: #fff; font-weight: 600; }
@@ -123,6 +129,10 @@ let sesion = leer(K_CURSO, null);
 const dia = id => RUTINA.find(d => d.id === id);
 if (sesion && !dia(sesion.dia)) sesion = null;
 const guardarCurso = () => escribir(K_CURSO, sesion);
+
+const K_UNIDADES = 'entreno.unidades';
+const unidades = leer(K_UNIDADES, {});
+const unidad = ejId => unidades[ejId] === 'lb' ? 'lb' : 'kg';
 
 const tEl = document.getElementById('timer');
 let corriendo = null;
@@ -280,7 +290,8 @@ function pantallaSesion() {
     ${tarjetaCuerpo(d)}
     ${d.ejercicios.map(tarjetaEjercicio).join('')}
     ${tarjetaFinal(d.final)}
-    <button class="grande destacado" data-accion="resumen">Terminar sesión</button>`;
+    <button class="grande destacado" data-accion="resumen">Terminar sesión</button>
+    <button class="grande peligro" data-accion="cancelar">Cancelar sesión</button>`;
 }
 
 const chips = (principales, secundarios) => [
@@ -303,19 +314,25 @@ function tarjetaEjercicio(ej) {
   const prev = L.anterior(historial, ej.id) ?? [];
   const filas = sesion.ejercicios[ej.id];
   const pendiente = filas.findIndex(s => !L.serieValida(s));
+  const u = unidad(ej.id);
   return `
     <section class="tarjeta">
-      <h3>${ej.nombre} <span class="sub">${ej.reps} reps</span></h3>
+      <div class="titulo">
+        <h3>${ej.nombre} <span class="sub">${ej.reps} reps</span></h3>
+        <div class="unidad" role="group" aria-label="Unidad de peso">${['kg', 'lb'].map(x => `
+          <button data-accion="unidad" data-ej="${ej.id}" data-u="${x}" class="${x === u ? 'activo' : ''}" aria-pressed="${x === u}">${x}</button>`).join('')}
+        </div>
+      </div>
       <div class="chips">${chips(ej.musculos.principal, ej.musculos.secundarios)}</div>
       <p class="sub">+ ${ej.cardio} ${ej.cardioSeg}s${ej.cardioBloques > 1 ? ' por pierna' : ''} · descanso ${ej.descansoSeg}s</p>
       <table class="series">
         <colgroup><col class="col-n"><col class="col-ant"><col><col><col class="col-ok"></colgroup>
-        <thead><tr><th></th><th>Anterior</th><th>kg</th><th>reps</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Anterior</th><th>${u}</th><th>reps</th><th></th></tr></thead>
         <tbody>${filas.map((s, i) => `
           <tr class="serie ${L.serieValida(s) ? 'hecha' : i === pendiente ? 'siguiente' : ''}" data-ej="${ej.id}" data-i="${i}">
             <td class="n">S${i + 1}</td>
-            <td class="ant">${prev[i] ? `${prev[i].peso}×${prev[i].reps}` : '—'}</td>
-            <td><input data-campo="peso" inputmode="decimal" placeholder="kg" aria-label="Peso serie ${i + 1}" value="${s.peso ?? ''}"></td>
+            <td class="ant">${prev[i] ? `${L.formatoPeso(prev[i].peso, u)}×${prev[i].reps}` : '—'}</td>
+            <td><input data-campo="peso" inputmode="decimal" placeholder="${u}" aria-label="Peso serie ${i + 1} en ${u}" value="${L.formatoPeso(s.peso, u)}"></td>
             <td><input data-campo="reps" inputmode="numeric" placeholder="reps" aria-label="Repeticiones serie ${i + 1}" value="${s.reps ?? ''}"></td>
             <td><button data-accion="serie" aria-label="Serie ${i + 1} hecha">✓</button></td>
           </tr>`).join('')}
@@ -346,8 +363,9 @@ function tarjetaFinal(f) {
 function marcarSerie(fila) {
   const ejId = fila.dataset.ej;
   const i = Number(fila.dataset.i);
+  const peso = L.parseNumero(fila.querySelector('[data-campo=peso]').value);
   const serie = {
-    peso: L.parseNumero(fila.querySelector('[data-campo=peso]').value),
+    peso: peso == null ? null : L.aKg(peso, unidad(ejId)),
     reps: L.parseNumero(fila.querySelector('[data-campo=reps]').value),
   };
   if (!L.serieValida(serie)) return alert('Escribe el peso (0 si no usas peso) y las repeticiones.');
@@ -369,9 +387,9 @@ const entreParentesis = texto => texto && ` (${texto})`;
 function pantallaResumen() {
   const d = dia(sesion.dia);
   const lineas = d.ejercicios.map(ej => {
-    const hoy = L.volumen(sesion.ejercicios[ej.id]);
+    const hoy = L.volumenEn(sesion.ejercicios[ej.id], unidad(ej.id));
     const prev = L.anterior(historial, ej.id);
-    const antes = prev && L.volumen(prev);
+    const antes = prev && L.volumenEn(prev, unidad(ej.id));
     return `<div class="fila"><span class="punto ${L.semaforo(hoy, antes)}"></span>${ej.nombre}<b>${+hoy.toFixed(1)}${entreParentesis(pct(hoy, antes))}</b></div>`;
   });
   if (d.final.tipo === 'distancia') {
@@ -391,11 +409,29 @@ function guardarSesion() {
     Object.entries(sesion.ejercicios).map(([id, series]) => [id, series.filter(L.serieValida)]));
   historial.push({ fecha: sesion.fecha, dia: sesion.dia, ejercicios, cardioSeg: sesion.cardioSeg });
   escribir(K_HIST, historial);
+  cerrarSesion();
+}
+
+function cancelarSesion() {
+  if (!confirm(`¿Cancelar la sesión de ${dia(sesion.dia).nombre}? Se borrará lo registrado hoy y no se guardará.`)) return;
+  detenerTemporizador();
+  cerrarSesion();
+}
+
+function cerrarSesion() {
+  if (crono) clearInterval(crono.intervalo);
+  crono = null;
   localStorage.removeItem(K_CURSO);
   sesion = null;
   wake?.release();
   wake = null;
   inicio();
+}
+
+function cambiarUnidad(ejId, u) {
+  unidades[ejId] = u;
+  escribir(K_UNIDADES, unidades);
+  pantallaSesion();
 }
 
 function pantallaProgreso() {
@@ -417,12 +453,16 @@ function pantallaProgreso() {
       </details>`;
   };
   const bloques = RUTINA.map(d => {
-    const tarjetas = d.ejercicios.map(ej => tarjeta(ej.nombre, L.tendencia(historial
-      .filter(s => s.ejercicios[ej.id]?.some(L.serieValida))
-      .map(s => {
-        const series = s.ejercicios[ej.id].filter(L.serieValida);
-        return { fecha: s.fecha, v: L.volumen(series), detalle: series.map(x => `${x.peso}×${x.reps}`).join(' · ') };
-      })), v => +v.toFixed(1)));
+    const tarjetas = d.ejercicios.map(ej => {
+      const u = unidad(ej.id);
+      return tarjeta(ej.nombre, L.tendencia(historial
+        .filter(s => s.ejercicios[ej.id]?.some(L.serieValida))
+        .map(s => {
+          const series = s.ejercicios[ej.id].filter(L.serieValida);
+          const detalle = series.map(x => `${L.formatoPeso(x.peso, u)}×${x.reps}`).join(' · ');
+          return { fecha: s.fecha, v: L.volumenEn(series, u), detalle: series.some(x => x.peso > 0) ? `${detalle} ${u}` : detalle };
+        })), v => +v.toFixed(1));
+    });
     if (d.final.tipo === 'distancia') {
       tarjetas.push(tarjeta(d.final.nombre, L.tendencia(historial
         .filter(s => s.dia === d.id && s.cardioSeg > 0)
@@ -479,6 +519,8 @@ app.addEventListener('click', e => {
     case 'serie': return marcarSerie(b.closest('.serie'));
     case 'resumen': return pantallaResumen();
     case 'guardar': return guardarSesion();
+    case 'cancelar': return cancelarSesion();
+    case 'unidad': return cambiarUnidad(b.dataset.ej, b.dataset.u);
     case 'hiit': return temporizador(L.pasosHiit(dia(sesion.dia).final));
     case 'crono': return alternarCrono();
     case 'progreso': return pantallaProgreso();
@@ -506,7 +548,9 @@ app.addEventListener('change', e => {
   }
   const fila = input.closest('.serie');
   if (!fila) return;
-  sesion.ejercicios[fila.dataset.ej][fila.dataset.i][input.dataset.campo] = L.parseNumero(input.value);
+  const valor = L.parseNumero(input.value);
+  const esPeso = input.dataset.campo === 'peso' && valor != null;
+  sesion.ejercicios[fila.dataset.ej][fila.dataset.i][input.dataset.campo] = esPeso ? L.aKg(valor, unidad(fila.dataset.ej)) : valor;
   guardarCurso();
 });
 

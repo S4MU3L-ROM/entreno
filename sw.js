@@ -1,5 +1,5 @@
 // Subir VERSION en cada cambio publicado: la app se actualiza la siguiente vez que se abre.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const ARCHIVOS = ['./', './index.html', './rutina.js', './logica.js', './cuerpo.js', './manifest.json', './icono-192.png', './icono-512.png'];
 
 self.addEventListener('install', e => {

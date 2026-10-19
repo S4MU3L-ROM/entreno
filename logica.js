@@ -18,6 +18,18 @@ export function volumen(series) {
   return hechas.reduce((total, s) => total + (sinPeso ? s.reps : s.peso * s.reps), 0);
 }
 
+// Los pesos se guardan siempre en kg; lb solo existe al mostrar y al escribir.
+export const KG_POR_LB = 0.45359237;
+export const aKg = (valor, unidad) => unidad === 'lb' ? valor * KG_POR_LB : valor;
+export const aUnidad = (kg, unidad) => unidad === 'lb' ? kg / KG_POR_LB : kg;
+export const formatoPeso = (kg, unidad) => kg == null ? '' : String(+aUnidad(kg, unidad).toFixed(2));
+
+// Volumen en la unidad del ejercicio; sin peso son repeticiones y no se convierte.
+export function volumenEn(series, unidad) {
+  const conPeso = series.some(s => serieValida(s) && s.peso > 0);
+  return conPeso ? aUnidad(volumen(series), unidad) : volumen(series);
+}
+
 export function semaforo(hoy, anterior, menosEsMejor = false) {
   if (!anterior || hoy == null) return 'gris';
   const delta = ((hoy - anterior) / anterior) * (menosEsMejor ? -1 : 1);
