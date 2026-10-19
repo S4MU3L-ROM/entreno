@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icono-192.png">
+<title>Entreno</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --fondo: #0f1115; --superficie: #191c23; --borde: #2a2f3a; --texto: #f2f4f8; --sub: #8b93a5;
+    --acento: #e5383b; --verde: #2ecc71; --amarillo: #f4c430; --rojo: #e5383b; --gris: #5c6370; --azul: #3a86ff;
+    --radio: 16px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--fondo); color: var(--texto); -webkit-tap-highlight-color: transparent; }
+  main { max-width: 560px; margin: 0 auto; padding: 16px 16px 32px; }
+  h1 { font-size: 1.8rem; margin: 12px 0 20px; }
+  h2 { font-size: 1.3rem; margin: 0; }
+  button { font: inherit; color: inherit; background: var(--superficie); border: 1px solid var(--borde); border-radius: 12px; padding: 12px 16px; min-height: 48px; cursor: pointer; }
+  button:active { transform: scale(.98); }
+  .grande { display: block; width: 100%; margin: 0 0 12px; padding: 18px 20px; font-size: 1.15rem; font-weight: 600; text-align: left; border-radius: var(--radio); }
+  .grande small { display: block; margin-top: 4px; color: var(--sub); font-size: .85rem; font-weight: 400; }
+  .destacado { background: var(--acento); border-color: var(--acento); }
+  .destacado small { color: #ffe3e3; }
+  nav { display: flex; gap: 12px; margin-top: 8px; }
+  nav button { flex: 1; }
+  header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; margin: -16px -16px 16px; padding: 12px 16px; background: color-mix(in srgb, var(--fondo) 85%, transparent); backdrop-filter: blur(8px); }
+  .tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px; margin-bottom: 12px; }
+  .tarjeta h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .sub { color: var(--sub); margin: 2px 0; font-size: .85rem; }
+  .fila { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .fila .n { width: 28px; color: var(--sub); font-size: .85rem; }
+  .fila input { width: 0; flex: 1; min-height: 48px; font-size: 1.15rem; text-align: center; border-radius: 12px; border: 1px solid var(--borde); background: var(--fondo); color: var(--texto); }
+  .fila input:focus { outline: 2px solid var(--azul); border-color: transparent; }
+  .fila.siguiente input { border-color: var(--azul); }
+  .fila.hecha input { border-color: var(--verde); color: var(--sub); }
+  .fila.hecha button { background: var(--verde); border-color: var(--verde); color: #08130c; }
+  .fila b { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .punto { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+  .verde { background: var(--verde); }
+  .amarillo { background: var(--amarillo); }
+  .rojo { background: var(--rojo); }
+  .gris { background: var(--gris); }
+  #timer { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 16px; text-align: center; transition: background .3s; }
+  #timer[hidden] { display: none; }
+  #timer .texto { font-size: 1.5rem; font-weight: 600; }
+  #timer .cuenta { font-size: min(32vw, 40vh); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  #timer .botones { display: flex; gap: 12px; }
+  #timer button { min-width: 96px; background: rgba(0, 0, 0, .25); border-color: transparent; }
+  .fase-prep { background: #c77d00; }
+  .fase-cardio, .fase-trabajo { background: var(--rojo); }
+  .fase-descanso { background: var(--azul); }
+  .fase-pausa { background: #1f9d55; }
+  label.grande { background: var(--superficie); border: 1px solid var(--borde); cursor: pointer; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="timer" hidden>
+  <div class="texto"></div>
+  <div class="cuenta"></div>
+  <div class="botones">
+    <button data-t="pausa">Pausa</button>
+    <button data-t="saltar">Saltar ⏭</button>
+    <button data-t="cerrar" aria-label="Cerrar temporizador">×</button>
+  </div>
+</div>
+<script type="module">
+import { RUTINA } from './rutina.js';
+import * as L from './logica.js';
+
+const K_HIST = 'entreno.historial';
+const K_CURSO = 'entreno.enCurso';
+const app = document.getElementById('app');
+
+function leer(clave, defecto) {
+  try { return JSON.parse(localStorage.getItem(clave)) ?? defecto; } catch { return defecto; }
+}
+const escribir = (clave, valor) => localStorage.setItem(clave, JSON.stringify(valor));
+
+let historial = leer(K_HIST, []);
+if (!L.validarRespaldo(historial)) historial = [];
+let sesion = leer(K_CURSO, null);
+const dia = id => RUTINA.find(d => d.id === id);
+if (sesion && !dia(sesion.dia)) sesion = null;
+const guardarCurso = () => escribir(K_CURSO, sesion);
+
+const tEl = document.getElementById('timer');
+let corriendo = null;
+let audio = null;
+let wake = null;
+let crono = null;
+
+function pitido(frecuencia, segundos) {
+  try {
+    audio ??= new AudioContext();
+    if (audio.state === 'suspended') audio.resume();
+    const osc = audio.createOscillator();
+    const vol = audio.createGain();
+    osc.frequency.value = frecuencia;
+    vol.gain.value = 0.3;
+    osc.connect(vol).connect(audio.destination);
+    osc.start();
+    osc.stop(audio.currentTime + segundos);
+  } catch { /* Sin audio el temporizador sigue funcionando. */ }
+}
+const vibrar = patron => navigator.vibrate?.(patron);
+
+async function mantenerPantalla() {
+  if (wake && !wake.released) return;
+  try { wake = await navigator.wakeLock.request('screen'); } catch { wake = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && sesion) mantenerPantalla();
+});
+
+function temporizador(pasos, alTerminar = () => {}) {
+  detenerTemporizador();
+  corriendo = { pasos, i: -1, alTerminar };
+  tEl.hidden = false;
+  siguientePaso();
+  if (corriendo) corriendo.intervalo = setInterval(tick, 200);
+}
+
+function siguientePaso() {
+  const c = corriendo;
+  if (!c) return;
+  c.i++;
+  if (c.i >= c.pasos.length) {
+    detenerTemporizador();
+    pitido(880, 0.6);
+    vibrar([300, 100, 300]);
+    return c.alTerminar();
+  }
+  const paso = c.pasos[c.i];
+  c.fin = Date.now() + paso.seg * 1000;
+  c.pausa = null;
+  c.ultimoSeg = null;
+  tEl.className = `fase-${paso.fase}`;
+  tEl.querySelector('.texto').textContent = paso.texto;
+  tEl.querySelector('[data-t=pausa]').textContent = 'Pausa';
+  pitido(660, 0.25);
+  vibrar(200);
+  tick();
+}
+
+function tick() {
+  const c = corriendo;
+  if (!c || c.pausa != null) return;
+  const resta = Math.ceil((c.fin - Date.now()) / 1000);
+  if (resta <= 0) return siguientePaso();
+  if (resta === c.ultimoSeg) return;
+  c.ultimoSeg = resta;
+  tEl.querySelector('.cuenta').textContent = L.formatoTiempo(resta);
+  if (resta <= 3) pitido(440, 0.12);
+}
+
+function pausar() {
+  const c = corriendo;
+  if (!c) return;
+  if (c.pausa == null) {
+    c.pausa = c.fin - Date.now();
+  } else {
+    c.fin = Date.now() + c.pausa;
+    c.pausa = null;
+  }
+  tEl.querySelector('[data-t=pausa]').textContent = c.pausa == null ? 'Pausa' : 'Seguir';
+}
+
+function detenerTemporizador() {
+  if (corriendo) clearInterval(corriendo.intervalo);
+  corriendo = null;
+  tEl.hidden = true;
+}
+
+tEl.addEventListener('click', e => {
+  const accion = e.target.closest('[data-t]')?.dataset.t;
+  if (accion === 'pausa') pausar();
+  if (accion === 'saltar') siguientePaso();
+  if (accion === 'cerrar') detenerTemporizador();
+});
+
+function alternarCrono() {
+  if (!crono) {
+    crono = { inicio: Date.now() };
+    crono.intervalo = setInterval(() => {
+      const campo = document.getElementById('tiempo');
+      if (campo) campo.value = L.formatoTiempo(Math.floor((Date.now() - crono.inicio) / 1000));
+    }, 250);
+    document.getElementById('crono').textContent = 'Detener';
+    return;
+  }
+  clearInterval(crono.intervalo);
+  sesion.cardioSeg = Math.round((Date.now() - crono.inicio) / 1000);
+  crono = null;
+  guardarCurso();
+  pantallaSesion();
+}
+
+function filasNuevas(ej) {
+  const prev = L.anterior(historial, ej.id) ?? [];
+  return Array.from({ length: ej.series }, (_, i) => ({ peso: prev[i]?.peso ?? prev.at(-1)?.peso ?? null, reps: null }));
+}
+
+function inicio() {
+  const toca = L.siguienteDia(historial);
+  app.innerHTML = `
+    <h1>Entreno</h1>
+    ${sesion ? `
+      <button class="grande destacado" data-accion="continuar">
+        ▶ Continuar ${dia(sesion.dia).nombre}<small>Sesión del ${sesion.fecha} sin guardar</small>
+      </button>` : ''}
+    ${RUTINA.map(d => `
+      <button class="grande ${!sesion && d.id === toca ? 'destacado' : ''}" data-accion="empezar" data-dia="${d.id}">
+        ${d.nombre}<small>${!sesion && d.id === toca ? 'Te toca · ' : ''}${d.enfasis}</small>
+      </button>`).join('')}
+    <nav>
+      <button data-accion="historial">Historial</button>
+      <button data-accion="respaldo">Respaldo</button>
+    </nav>`;
+}
+
+function empezar(id) {
+  if (sesion && !confirm(`Hay una sesión de ${dia(sesion.dia).nombre} sin guardar. ¿Descartarla y empezar ${dia(id).nombre}?`)) return;
+  sesion = {
+    fecha: L.fechaLocal(),
+    dia: id,
+    ejercicios: Object.fromEntries(dia(id).ejercicios.map(ej => [ej.id, filasNuevas(ej)])),
+    cardioSeg: null,
+  };
+  guardarCurso();
+  pantallaSesion();
+}
+
+function pantallaSesion() {
+  const d = dia(sesion.dia);
+  for (const ej of d.ejercicios) sesion.ejercicios[ej.id] ??= filasNuevas(ej);
+  mantenerPantalla();
+  app.innerHTML = `
+    <header><button data-accion="inicio" aria-label="Volver">←</button><h2>${d.nombre}</h2></header>
+    ${d.ejercicios.map(tarjetaEjercicio).join('')}
+    ${tarjetaFinal(d.final)}
+    <button class="grande destacado" data-accion="resumen">Terminar sesión</button>`;
+}
+
+function tarjetaEjercicio(ej) {
+  const prev = L.anterior(historial, ej.id);
+  const filas = sesion.ejercicios[ej.id];
+  const pendiente = filas.findIndex(s => !L.serieValida(s));
+  return `
+    <section class="tarjeta">
+      <h3>${ej.nombre} <span class="sub">${ej.reps} reps</span></h3>
+      <p class="sub">+ ${ej.cardio} ${ej.cardioSeg}s${ej.cardioBloques > 1 ? ' por pierna' : ''} · descanso ${ej.descansoSeg}s</p>
+      <p class="sub">Anterior: ${prev ? prev.map(s => `${s.peso}×${s.reps}`).join(' · ') : '—'}</p>
+      ${filas.map((s, i) => `
+        <div class="fila ${L.serieValida(s) ? 'hecha' : i === pendiente ? 'siguiente' : ''}" data-ej="${ej.id}" data-i="${i}">
+          <span class="n">S${i + 1}</span>
+          <input data-campo="peso" inputmode="decimal" placeholder="kg" aria-label="Peso serie ${i + 1}" value="${s.peso ?? ''}">
+          <input data-campo="reps" inputmode="numeric" placeholder="reps" aria-label="Repeticiones serie ${i + 1}" value="${s.reps ?? ''}">
+          <button data-accion="serie" aria-label="Serie ${i + 1} hecha">✓</button>
+        </div>`).join('')}
+    </section>`;
+}
+
+function tarjetaFinal(f) {
+  if (f.tipo === 'hiit') return `
+    <section class="tarjeta">
+      <h3>HIIT · ${f.nombre}</h3>
+      <p class="sub">${f.minutos} min · ${f.trabajoSeg}s fuerte / ${f.pausaSeg}s moderado</p>
+      <div class="fila"><button data-accion="hiit">Iniciar HIIT</button></div>
+    </section>`;
+  const prev = L.cardioAnterior(historial, sesion.dia);
+  return `
+    <section class="tarjeta">
+      <h3>${f.nombre}</h3>
+      <p class="sub">Anterior: ${prev ? L.formatoTiempo(prev) : '—'}</p>
+      <div class="fila">
+        <input id="tiempo" placeholder="m:ss" aria-label="Tiempo" value="${sesion.cardioSeg ? L.formatoTiempo(sesion.cardioSeg) : ''}">
+        <button data-accion="crono" id="crono">${crono ? 'Detener' : 'Cronómetro'}</button>
+      </div>
+    </section>`;
+}
+
+function marcarSerie(fila) {
+  const ejId = fila.dataset.ej;
+  const i = Number(fila.dataset.i);
+  const serie = {
+    peso: L.parseNumero(fila.querySelector('[data-campo=peso]').value),
+    reps: L.parseNumero(fila.querySelector('[data-campo=reps]').value),
+  };
+  if (!L.serieValida(serie)) return alert('Escribe el peso (0 si no usas peso) y las repeticiones.');
+  const filas = sesion.ejercicios[ejId];
+  filas[i] = serie;
+  if (filas[i + 1] && filas[i + 1].peso == null) filas[i + 1].peso = serie.peso;
+  guardarCurso();
+  pantallaSesion();
+  temporizador(L.pasosSuperserie(dia(sesion.dia).ejercicios.find(ej => ej.id === ejId)));
+}
+
+function pct(hoy, antes) {
+  if (!antes || hoy == null) return '';
+  const d = ((hoy - antes) / antes) * 100;
+  return ` (${d > 0 ? '+' : ''}${d.toFixed(1)} %)`;
+}
+
+function pantallaResumen() {
+  const d = dia(sesion.dia);
+  const lineas = d.ejercicios.map(ej => {
+    const hoy = L.volumen(sesion.ejercicios[ej.id]);
+    const prev = L.anterior(historial, ej.id);
+    const antes = prev && L.volumen(prev);
+    return `<div class="fila"><span class="punto ${L.semaforo(hoy, antes)}"></span>${ej.nombre}<b>${+hoy.toFixed(1)}${pct(hoy, antes)}</b></div>`;
+  });
+  if (d.final.tipo === 'distancia') {
+    const hoy = sesion.cardioSeg;
+    const antes = L.cardioAnterior(historial, d.id);
+    lineas.push(`<div class="fila"><span class="punto ${L.semaforo(hoy, antes, true)}"></span>${d.final.nombre}<b>${hoy ? L.formatoTiempo(hoy) : '—'}${pct(hoy, antes)}</b></div>`);
+  }
+  app.innerHTML = `
+    <header><button data-accion="continuar" aria-label="Volver">←</button><h2>Resumen · ${d.nombre}</h2></header>
+    <section class="tarjeta">${lineas.join('')}</section>
+    <p class="sub">🟢 mejoró más de 2 % · 🟡 se mantuvo · 🔴 bajó más de 2 % · ⚪ sin referencia</p>
+    <button class="grande destacado" data-accion="guardar">Guardar sesión</button>`;
+}
+
+function guardarSesion() {
+  const ejercicios = Object.fromEntries(
+    Object.entries(sesion.ejercicios).map(([id, series]) => [id, series.filter(L.serieValida)]));
+  historial.push({ fecha: sesion.fecha, dia: sesion.dia, ejercicios, cardioSeg: sesion.cardioSeg });
+  escribir(K_HIST, historial);
+  localStorage.removeItem(K_CURSO);
+  sesion = null;
+  wake?.release();
+  wake = null;
+  inicio();
+}
+
+function pantallaHistorial() {
+  const bloques = RUTINA.flatMap(d => d.ejercicios).map(ej => {
+    const puntos = historial
+      .filter(s => s.ejercicios[ej.id]?.length)
+      .map(s => ({ fecha: s.fecha, v: L.volumen(s.ejercicios[ej.id]) }));
+    return tarjetaHistorial(ej.nombre, puntos, false, v => +v.toFixed(1));
+  });
+  for (const d of RUTINA.filter(d => d.final.tipo === 'distancia')) {
+    const puntos = historial
+      .filter(s => s.dia === d.id && s.cardioSeg > 0)
+      .map(s => ({ fecha: s.fecha, v: s.cardioSeg }));
+    bloques.push(tarjetaHistorial(d.final.nombre, puntos, true, L.formatoTiempo));
+  }
+  app.innerHTML = `
+    <header><button data-accion="inicio" aria-label="Volver">←</button><h2>Historial</h2></header>
+    ${bloques.join('') || '<p class="sub">Todavía no hay sesiones guardadas.</p>'}`;
+}
+
+function tarjetaHistorial(titulo, puntos, menosEsMejor, formato) {
+  if (!puntos.length) return '';
+  const filas = puntos
+    .map((p, i) => ({ ...p, color: L.semaforo(p.v, puntos[i - 1]?.v, menosEsMejor) }))
+    .slice(-5)
+    .reverse()
+    .map(p => `<div class="fila"><span class="punto ${p.color}"></span>${p.fecha}<b>${formato(p.v)}</b></div>`);
+  return `<section class="tarjeta"><h3>${titulo}</h3>${filas.join('')}</section>`;
+}
+
+function pantallaRespaldo() {
+  app.innerHTML = `
+    <header><button data-accion="inicio" aria-label="Volver">←</button><h2>Respaldo</h2></header>
+    <p class="sub">${historial.length} sesiones guardadas en este celular. Si se borran los datos del navegador se pierden: exporta cada semana y guarda el archivo en Drive o WhatsApp.</p>
+    <button class="grande" data-accion="exportar">Exportar respaldo (.json)</button>
+    <label class="grande">Importar respaldo<input id="archivo" type="file" accept=".json,application/json" hidden></label>`;
+}
+
+function exportar() {
+  const blob = new Blob([JSON.stringify(historial, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `entreno-respaldo-${L.fechaLocal()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function importar(archivo) {
+  let datos;
+  try { datos = JSON.parse(await archivo.text()); } catch { return alert('El archivo no es un JSON válido. No se cambió nada.'); }
+  if (!L.validarRespaldo(datos)) return alert('El archivo no es un respaldo de esta app. No se cambió nada.');
+  if (!confirm(`¿Reemplazar tu historial (${historial.length} sesiones) por el del archivo (${datos.length} sesiones)?`)) return;
+  historial = datos;
+  escribir(K_HIST, historial);
+  alert('Respaldo importado.');
+  inicio();
+}
+
+app.addEventListener('click', e => {
+  const b = e.target.closest('[data-accion]');
+  if (!b) return;
+  switch (b.dataset.accion) {
+    case 'inicio': return inicio();
+    case 'continuar': return pantallaSesion();
+    case 'empezar': return empezar(b.dataset.dia);
+    case 'serie': return marcarSerie(b.closest('.fila'));
+    case 'resumen': return pantallaResumen();
+    case 'guardar': return guardarSesion();
+    case 'hiit': return temporizador(L.pasosHiit(dia(sesion.dia).final));
+    case 'crono': return alternarCrono();
+    case 'historial': return pantallaHistorial();
+    case 'respaldo': return pantallaRespaldo();
+    case 'exportar': return exportar();
+  }
+});
+
+app.addEventListener('change', e => {
+  const input = e.target;
+  if (input.id === 'archivo') {
+    const archivo = input.files[0];
+    input.value = '';
+    return archivo && importar(archivo);
+  }
+  if (input.id === 'tiempo') {
+    const seg = L.parseTiempo(input.value);
+    if (input.value.trim() && seg == null) {
+      alert('Escribe el tiempo como m:ss, por ejemplo 9:05');
+      input.value = sesion.cardioSeg ? L.formatoTiempo(sesion.cardioSeg) : '';
+      return;
+    }
+    sesion.cardioSeg = seg;
+    return guardarCurso();
+  }
+  const fila = input.closest('.fila[data-ej]');
+  if (!fila) return;
+  sesion.ejercicios[fila.dataset.ej][fila.dataset.i][input.dataset.campo] = L.parseNumero(input.value);
+  guardarCurso();
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+inicio();
+</script>
+</body>
+</html>
